@@ -6,14 +6,13 @@ pc = memcache.Client(['192.168.1.120:11211'], debug=0)
 #pc = memcache.Client(['192.168.1.132:11211'], debug=0)
 
 chars = str(string.ascii_uppercase) + str(string.digits)
+print(chars)
 red = '\033[31m'
 green = '\033[32m'
 orangebg = '\033[43m'
 reset = '\033[00m'
 
-last = 0
-p = 0
-h = 0
+e = 0
 k = 0
 
 GPIO.setmode(GPIO.BCM)
@@ -44,6 +43,7 @@ def status(changed):
         print(str(str(v) + ":" + green + str(state[v]).replace("1","V").replace("0", red + "X"+ reset) + reset +  "|"), end="", flush=True)
     print(orangebg + "<" + str(changed) + reset)
 
+
 def gettime():
     now = datetime.now().strftime("%H:%M:%S")
     now = str("[" + now + "]")
@@ -64,51 +64,32 @@ def sendToPC(channel):
     message = str(channel) + str(state[channel])
     to_send = ('*' + randchars() + '*' + message).replace("25", state[24]).replace("26", state[24]).replace("27", state[24])
     pc.set('input', to_send)
-    os.system('echo ' + gettime() + to_send + '  >> /root/keysender/log')
+    os.system('echo ' + gettime() + to_send + '  >> /root/piFlightBox/log')
     status(channel)
 
 #==================ENCODER START===========
 def encoder(channel):
-    global last
-    global p
-    global h
-
-    #Адская конструкция по исключению случайных срабатываний. Можно лучше, но я устал...
-    if last != channel and p == 0:
-        if h == 1:
-            p = 1
-            h = 0
-            last = channel
-            return
-        h = 1
+    time.sleep(0.01)
+    global e
+    global k
     #Практически полностью отсеянные неправильные срабатывания передаются в модуль,
     #где математически исключаются вкрапления одного показания среди другого.
     #Побочный эффект - некоторая "инерция" показаний при начале вращения ручки в другую сторону.
-        sort(channel) #<---
-        last = channel
-        p = 1
+    if e != 0:
+        e = 0
         return
-    if last == channel and p == 0:
-        p = 1
-        return
-    if last != channel and p > 0:
-        last = channel
-        p = 0
-        return
-
-def sort(channel):
-    global k
-    if channel == 26:
-        if k < 3:
-            k += 1
     else:
-        if k > -3:
-            k -= 1
+        if channel == 26:
+            if k < 3:
+                k += 1
+        else:
+            if k > -3:
+                k -= 1
 
-    if channel == 26 and k > 2:
-        sendToPC(channel)
-    if channel == 27 and k < -2:
-        sendToPC(channel)
+        if channel == 26 and k > 2:
+            sendToPC(channel)
+        if channel == 27 and k < -2:
+            sendToPC(channel)
 
 
 def modeSelect(channel):
@@ -167,5 +148,5 @@ status("")
 try:
     while True:
         time.sleep(0.1)
-except Exception as e:
-    print(e)
+except Exception as exc:
+    print(exc)
