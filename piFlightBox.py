@@ -1,12 +1,10 @@
 import RPi.GPIO as GPIO
-import memcache, random, string, time, os, sys
+import config, memcache, random, string, time, os, sys
 from datetime import datetime
 
-pc = memcache.Client(['192.168.1.120:11211'], debug=0)
-#pc = memcache.Client(['192.168.1.132:11211'], debug=0)
+pc = memcache.Client([config.address], debug=0)
 
 chars = str(string.ascii_uppercase) + str(string.digits)
-print(chars)
 red = '\033[31m'
 green = '\033[32m'
 orangebg = '\033[43m'
@@ -30,7 +28,12 @@ GPIO.setup(25, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #encoder_push
 GPIO.setup(26, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #encoder_rotate
 GPIO.setup(27, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #encoder_rotate
 
-ignorestatus = [24, 25, 26, 27]
+ignorestatus = config.ignore
+
+if "-status" in sys.argv:
+    show_status = True
+else:
+    show_status = False
 
 
 def i(pin):
@@ -38,6 +41,9 @@ def i(pin):
 
 
 def status(changed):
+    global show_status
+    if not show_status:
+        return
     print(gettime() + "|", end="", flush=True)
     for v in state:
         print(str(str(v) + ":" + green + str(state[v]).replace("1","V").replace("0", red + "X"+ reset) + reset +  "|"), end="", flush=True)
@@ -64,16 +70,14 @@ def sendToPC(channel):
     message = str(channel) + str(state[channel])
     to_send = ('*' + randchars() + '*' + message).replace("25", state[24]).replace("26", state[24]).replace("27", state[24])
     pc.set('input', to_send)
-    os.system('echo ' + gettime() + to_send + '  >> /root/piFlightBox/log')
+    os.system('echo ' + gettime() + to_send + '  >> ' + config.path + 'log')
     status(channel)
 
 #==================ENCODER START===========
 def encoder(channel):
-    time.sleep(0.01)
     global e
     global k
-    #Практически полностью отсеянные неправильные срабатывания передаются в модуль,
-    #где математически исключаются вкрапления одного показания среди другого.
+    #Практически полностью исключаются вкрапления одного показания среди другого.
     #Побочный эффект - некоторая "инерция" показаний при начале вращения ручки в другую сторону.
     if e != 0:
         e = 0
@@ -93,6 +97,7 @@ def encoder(channel):
 
 
 def modeSelect(channel):
+#A = alt; H = heading; N = nav; C = com; B = baro
     if state[channel] == "A":
         state[channel] = "H"
         status(channel)
@@ -142,8 +147,9 @@ GPIO.add_event_detect(25, GPIO.FALLING, callback=sendToPC, bouncetime=100)
 GPIO.add_event_detect(26, GPIO.BOTH, callback=encoder, bouncetime=10)
 GPIO.add_event_detect(27, GPIO.BOTH, callback=encoder, bouncetime=10)
 
-print(orangebg + red + "               piFlightBox               " + reset)
-status("")
+if show_status:
+    print(orangebg + red + "               piFlightBox               " + reset)
+    status("")
 
 try:
     while True:
