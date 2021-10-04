@@ -1,5 +1,5 @@
 # piFlightBox
-Project aimed to create simple handcrafted cockipit based on Raspberry Pi
+Project aimed to create simple handcrafted avionics box for flight simulators based on Raspberry Pi.
 
 ## Requieremnts
 ### RPi
