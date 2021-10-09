@@ -2,7 +2,6 @@
 Project aimed to create simple handcrafted avionics box for flight simulators based on Raspberry Pi.
 
 ## Requierements
-### RPi
 - [python3](https://wiki.python.org/moin/BeginnersGuide/Download)
 - python memcache module:
 ```
