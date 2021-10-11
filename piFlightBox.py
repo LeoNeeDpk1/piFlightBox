@@ -84,7 +84,7 @@ def sendToPC(channel):
         state[channel] = i(channel)
 
     message = str(channel) + str(state[channel])
-    to_send = ('*' + randchars() + '*' + message).replace("17", state[16]).replace("18", state[16]).replace("24", state[25]).replace("26", state[25]).replace("27", state[25])
+    to_send = ('*' + randchars() + '*' + message).replace("17", state[16]).replace("18", state[16]).replace("26", state[25]).replace("27", state[25])
     pc.set('input', to_send)
     os.system('echo ' + gettime() + to_send + '  >> ' + config.path + 'log')
     status(channel)
@@ -139,7 +139,7 @@ def encoder2(channel):
 
 def modeSelect(channel):
 #Encoder1
-#T = thrust; M = mixture; P = propeller
+#T = thrust; M = mixture; P = propeller; E = elevator (pitch trim)
 
 #Encoder2
 #A = alt; H = heading; V = VS; N = nav; C = com; B = baro
@@ -156,28 +156,41 @@ def modeSelect(channel):
         return
 
     if state[channel] == "V":
-        state[channel] = "N"
-        status(channel)
-        led("N")
-        return
-
-    if state[channel] == "N":
-        state[channel] = "C"
-        status(channel)
-        led("C")
-        return
-
-    if state[channel] == "C":
-        state[channel] = "B"
-        status(channel)
-        led("B")
-        return
-
-    if state[channel] == "B":
         state[channel] = "A"
         status(channel)
         led("A")
         return
+
+#MSFS2020 does not support bindings for knobs below
+#    if state[channel] == "N":
+#        state[channel] = "A"
+#        status(channel)
+#        led("A")
+#        return
+
+#    if state[channel] == "N":
+#        state[channel] = "C"
+#        status(channel)
+#        led("C")
+#        return
+
+#    if state[channel] == "C":
+#        state[channel] = "B"
+#        status(channel)
+#        led("B")
+#        return
+
+#    if state[channel] == "B":
+#        state[channel] = "A"
+#        status(channel)
+#        led("A")
+#        return
+    if state[channel] == "E":
+        state[channel] = "T"
+        status(channel)
+        led("T")
+        return
+
 
     if state[channel] == "T":
         state[channel] = "M"
@@ -192,9 +205,9 @@ def modeSelect(channel):
         return
 
     if state[channel] == "P":
-        state[channel] = "T"
+        state[channel] = "E"
         status(channel)
-        led("T")
+        led("E")
         return
 #================ENCODERS END===================
 
@@ -210,7 +223,7 @@ def led(v):
 
 
 state = {1:i(1), 4:i(4), 5:i(5), 6:i(6), 7:i(7), 8:i(8), 9:i(9), 10:i(10), 11:i(11), 12:i(12),
-13:"B", 14:"B", 15:i(15), 16:"T", 17:"-", 18:"+", 19:"B", 20:"B", 24:"B", 25:"A", 26:"-", 27:"+"}
+13:"B", 14:"B", 15:i(15), 16:"E", 17:"-", 18:"+", 19:"B", 20:"B", 24:"B", 25:"A", 26:"-", 27:"+"}
 
 GPIO.add_event_detect(1, GPIO.BOTH, callback=sendToPC, bouncetime=100)
 GPIO.add_event_detect(4, GPIO.BOTH, callback=sendToPC, bouncetime=100)
