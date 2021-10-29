@@ -1,20 +1,19 @@
 import RPi.GPIO as GPIO
-import config, memcache, random, string, time, os, sys, subprocess
+import config, string, time, os, sys
+from led import scenario as led
+from send import sender
+from encoder import Encoder
 from datetime import datetime
 
-pc = memcache.Client([config.address], debug=0)
-
+#Service variables. More info in config.py
 chars = string.ascii_uppercase
 red = '\033[31m'
 green = '\033[32m'
 orangebg = '\033[43m'
 reset = '\033[00m'
+ignorestatus = config.ignore
 
-enc1 = 0
-enck1 = 0
-enc2 = 0
-enck2 = 0
-
+#Pins init. >Add your buttons/switches/encoder/etc here<
 GPIO.setmode(GPIO.BCM)
 GPIO.setwarnings(False)
 
@@ -31,31 +30,37 @@ GPIO.setup(12, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #Pitot heat switch
 GPIO.setup(13, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #AP button
 GPIO.setup(14, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #APPR button
 GPIO.setup(15, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #Landing gear switch
-
 GPIO.setup(16, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #encoder1_push_mode_select: Thrust, Mixture, Prop
 GPIO.setup(17, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #encoder1_rotate
 GPIO.setup(18, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #encoder1_rotate
-
 GPIO.setup(19, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #Flaps up button
 GPIO.setup(20, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #Flaps down button
-
 GPIO.setup(24, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #button(encoder2_mode_dependency: AP ALT, AP HDG, AP NAV)
 GPIO.setup(25, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #encoder2_push_mode_select: ALT, HDG, NAV, COM
 GPIO.setup(26, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #encoder2_rotate
 GPIO.setup(27, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #encoder2_rotate
 
-ignorestatus = config.ignore
+#Encoders init. Encoder(pin_of_left_rotation, pin_of_right_rotation) >Add your encoders here<
+enc1 = Encoder(17, 18)
+enc2 = Encoder(26, 27)
 
+#Check script start arguments
 if "-status" in sys.argv:
     show_status = True
 else:
     show_status = False
+if  "-log" in sys.argv:
+    logging = True
+else:
+    logging = False
 
 
+#Check pin input status
 def i(pin):
     return GPIO.input(pin)
 
 
+#Show pins status if show_status is True. May cause spontaneous script stucks. For testing only
 def status(changed):
     global show_status
     if not show_status:
@@ -66,165 +71,69 @@ def status(changed):
     print(orangebg + "<" + str(changed) + reset)
 
 
+#Get current time for logging
 def gettime():
     now = datetime.now().strftime("%H:%M:%S")
     now = str("[" + now + "]")
     return now
 
 
+#Check pin status and send it via UDP packet to a PC with piFlightListener running on it
 def sendToPC(channel):
-    time.sleep(0.01)
     global state
     global ingnorestatus
 
-    if state[channel] == i(channel) and not channel in ignorestatus: #Дополнительная проверка состояния пина
+    #Small pause to exclude fake button pressing and additional status check
+    time.sleep(0.001)
+    if state[channel] == i(channel) and not channel in ignorestatus:
         return
 
+    #Record pin status to a "state" variable
     if not channel in ignorestatus:
         state[channel] = i(channel)
 
-    message = str(channel) + str(state[channel])
-    to_send = ('*' + randchars() + '*' + message).replace("17", state[16]).replace("18", state[16]).replace("26", state[25]).replace("27", state[25])
-    pc.set('input', to_send)
-    os.system('echo ' + gettime() + to_send + '  >> ' + config.path + 'log')
+    #Forming message to be sent to a PC
+    message = (str(channel) + str(state[channel])).replace("17", state[16]).replace("18", state[16]).replace("26", state[25]).replace("27", state[25])
+    sender(message)
+
+    if logging:
+        os.system('echo ' + gettime() + message + '  >> ' + config.path + 'log')
+
     status(channel)
 
 
-#==================ENCODERS START===========
-def encoder1(channel):
-    global enc1
-    global enck1
-    if i(17) == i(18):
-        return
-    if enc1 != 0:
-        enc1 = 0
-        return
-    else:
-        enc1 = 1
-        if channel == 17:
-            if enck1 < 1:
-               enck1 += 1
-        else:
-            if enck1 > -1:
-                enck1 -= 1
+#Rotation processing in "encoder.py"
+#>Add new if statement for new encoder<
+def encoder(channel):
+    if 17 <= channel <= 18:
+        e = enc1.rotate(channel, i(17), i(18))
+    if 26 <= channel <= 27:
+        e = enc2.rotate(channel, i(26), i(27))
 
-        if channel == 17 and enck1 > 0:
-            sendToPC(channel)
-        if channel == 18 and enck1 < 0:
-            sendToPC(channel)
+    if e:
+        sendToPC(e)
 
 
-def encoder2(channel):
-    global enc2
-    global enck2
-    if i(26) == i(27):
-        return
-    if enc2 != 0:
-        enc2 = 0
-        return
-    else:
-        enc2 = 1
-        if channel == 26:
-            if enck2 < 1:
-                enck2 += 1
-        else:
-            if enck2 > -1:
-                enck2 -= 1
-
-        if channel == 26 and enck2 > 0:
-            sendToPC(channel)
-        if channel == 27 and enck2 < 0:
-            sendToPC(channel)
-
-
+#Selection of encoder mode
+#Encoder1: T = thrust; M = mixture; P = propeller; E = elevator (pitch trim)
+#Encoder2: A = alt; H = heading; V = VS; N = nav; C = com; B = baro
 def modeSelect(channel):
-#Encoder1
-#T = thrust; M = mixture; P = propeller; E = elevator (pitch trim)
+    enc1modes = ["A", "H", "V"]
 
-#Encoder2
-#A = alt; H = heading; V = VS; N = nav; C = com; B = baro
-    if state[channel] == "A":
-        state[channel] = "H"
-        status(channel)
-        led("H")
-        return
+    if 25 <= channel <= 26:
+        if enc1modes.index(state[channel]) == len(enc1modes)-1:
+            state[channel] = enc1modes[0]
+        else:
+            state[channel] = enc1modes[enc1modes.index(state[channel]) + 1]
 
-    if state[channel] == "H":
-        state[channel] = "V"
-        status(channel)
-        led("V")
-        return
-
-    if state[channel] == "V":
-        state[channel] = "A"
-        status(channel)
-        led("A")
-        return
-
-#MSFS2020 does not support bindings for knobs below
-#    if state[channel] == "N":
-#        state[channel] = "A"
-#        status(channel)
-#        led("A")
-#        return
-
-#    if state[channel] == "N":
-#        state[channel] = "C"
-#        status(channel)
-#        led("C")
-#        return
-
-#    if state[channel] == "C":
-#        state[channel] = "B"
-#        status(channel)
-#        led("B")
-#        return
-
-#    if state[channel] == "B":
-#        state[channel] = "A"
-#        status(channel)
-#        led("A")
-#        return
-    if state[channel] == "E":
-        state[channel] = "T"
-        status(channel)
-        led("T")
-        return
+    led(state[channel])
 
 
-    if state[channel] == "T":
-        state[channel] = "M"
-        status(channel)
-        led("M")
-        return
-
-    if state[channel] == "M":
-        state[channel] = "P"
-        status(channel)
-        led("P")
-        return
-
-    if state[channel] == "P":
-        state[channel] = "E"
-        status(channel)
-        led("E")
-        return
-#================ENCODERS END===================
-
-
-def randchars():
-    global chars
-    r = ''.join(random.choice(chars) for c in range(6))
-    return r
-
-
-def led(v):
-    subprocess.Popen(['python3', '/root/piFlightBox/led.py', str(v)], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-
-
+#Main variable with pin status. Pins in "ignorestatus" ignore state changes. >Add your buttons here<
 state = {1:i(1), 4:i(4), 5:i(5), 6:i(6), 7:i(7), 8:i(8), 9:i(9), 10:i(10), 11:i(11), 12:i(12),
 13:"B", 14:"B", 15:i(15), 16:"E", 17:"-", 18:"+", 19:"B", 20:"B", 24:"B", 25:"A", 26:"-", 27:"+"}
 
+#Event triggers. >Add your buttons here<
 GPIO.add_event_detect(1, GPIO.BOTH, callback=sendToPC, bouncetime=100)
 GPIO.add_event_detect(4, GPIO.BOTH, callback=sendToPC, bouncetime=100)
 GPIO.add_event_detect(5, GPIO.BOTH, callback=sendToPC, bouncetime=100)
@@ -239,19 +148,20 @@ GPIO.add_event_detect(13, GPIO.RISING, callback=sendToPC, bouncetime=550)
 GPIO.add_event_detect(14, GPIO.RISING, callback=sendToPC, bouncetime=550)
 GPIO.add_event_detect(15, GPIO.BOTH, callback=sendToPC, bouncetime=100)
 #Encoder1
-GPIO.add_event_detect(16, GPIO.RISING, callback=modeSelect, bouncetime=250)
-GPIO.add_event_detect(17, GPIO.BOTH, callback=encoder1, bouncetime=10)
-GPIO.add_event_detect(18, GPIO.BOTH, callback=encoder1, bouncetime=10)
+#GPIO.add_event_detect(16, GPIO.RISING, callback=modeSelect, bouncetime=250)
+GPIO.add_event_detect(17, GPIO.BOTH, callback=encoder, bouncetime=10)
+GPIO.add_event_detect(18, GPIO.BOTH, callback=encoder, bouncetime=10)
 #===
 GPIO.add_event_detect(19, GPIO.RISING, callback=sendToPC, bouncetime=550)
 GPIO.add_event_detect(20, GPIO.RISING, callback=sendToPC, bouncetime=550)
 GPIO.add_event_detect(24, GPIO.RISING, callback=sendToPC, bouncetime=550)
 #Encoder2
 GPIO.add_event_detect(25, GPIO.RISING, callback=modeSelect, bouncetime=250)
-GPIO.add_event_detect(26, GPIO.BOTH, callback=encoder2, bouncetime=10)
-GPIO.add_event_detect(27, GPIO.BOTH, callback=encoder2, bouncetime=10)
+GPIO.add_event_detect(26, GPIO.BOTH, callback=encoder, bouncetime=10)
+GPIO.add_event_detect(27, GPIO.BOTH, callback=encoder, bouncetime=10)
 #===
 
+#Script starts here
 if show_status:
     print(orangebg + red + "               piFlightBox               " + reset)
     status("")
@@ -260,6 +170,6 @@ led('start')
 
 try:
     while True:
-        time.sleep(0.01)
+        time.sleep(0.001) #Small sleep sequence to avoid high CPU load
 except Exception as exc:
     print(exc)
