@@ -186,7 +186,7 @@ GPIO.add_event_detect(19, GPIO.RISING, callback=sendToPC, bouncetime=550)
 GPIO.add_event_detect(20, GPIO.RISING, callback=sendToPC, bouncetime=550)
 GPIO.add_event_detect(24, GPIO.RISING, callback=sendToPC, bouncetime=550)
 #Encoder2
-GPIO.add_event_detect(25, GPIO.RISING, callback=modeSelect, bouncetime=250)
+GPIO.add_event_detect(25, GPIO.RISING, callback=modeSelect, bouncetime=450)
 GPIO.add_event_detect(26, GPIO.BOTH, callback=encoder, bouncetime=10)
 GPIO.add_event_detect(27, GPIO.BOTH, callback=encoder, bouncetime=10)
 #===
