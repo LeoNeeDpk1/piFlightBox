@@ -5,6 +5,8 @@ from send import sender
 from encoder import Encoder
 from datetime import datetime
 
+
+
 #Service variables. More info in config.py
 chars = string.ascii_uppercase
 red = '\033[31m'
