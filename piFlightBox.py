@@ -1,5 +1,5 @@
 import RPi.GPIO as GPIO
-import config, string, time, os, sys, display
+import config, string, time, os, sys, display, arduinolistener
 from led import scenario as led
 from send import sender
 from encoder import Encoder
@@ -12,17 +12,20 @@ red = '\033[31m'
 green = '\033[32m'
 orangebg = '\033[43m'
 reset = '\033[00m'
-ignorestatus = config.ignore
 
 #Check script start arguments
-if "-status" in sys.argv:
+if "--status" in sys.argv:
     show_status = True
 else:
     show_status = False
-if  "-log" in sys.argv:
+if  "--log" in sys.argv:
     logging = True
 else:
     logging = False
+if "--on-display" in sys.argv:
+    status_on_disp = True
+else:
+    status_on_disp = False
 
 
 #Check pin input status
@@ -36,7 +39,8 @@ def display_init():
     disp.row2 = "piFlightBox up"
     disp.show()
     time.sleep(1)
-    disp.t1 = state[25].replace("A", "ALT  ").replace("H", "HDG  ").replace("V", "VS   ")
+    disp.t1 = state[16].replace("A", "ALT").replace("H", "HDG").replace("V", "VS")
+    disp.t3 = state[25].replace("E", "ELEV").replace("B", "BARO")
     disp.row2 = str(config.address[0])
     disp.show()
 
@@ -60,12 +64,16 @@ def display_update(text, third, row2):
 #Show pins status if show_status is True. May cause spontaneous script stucks. For testing only
 def status(changed):
     global show_status
-    if not show_status:
-        return
-    print(gettime() + "|", end="", flush=True)
-    for v in state:
-        print(str(str(v) + ":" + green + str(state[v]).replace("1","V").replace("0", red + "X"+ reset) + reset +  "|"), end="", flush=True)
-    print(orangebg + "<" + str(changed) + reset)
+    global status_on_disp
+
+    if status_on_disp and changed != "":
+        display_update(str(changed) + ":" + str(state[changed]), 2, False)
+
+    if show_status:
+        print(gettime() + "|", end="", flush=True)
+        for v in state:
+            print(str(str(v) + ":" + green + str(state[v]).replace("1","V").replace("0", red + "X"+ reset) + reset +  "|"), end="", flush=True)
+        print(orangebg + "<" + str(changed) + reset)
 
 
 #Get current time for logging
@@ -78,15 +86,14 @@ def gettime():
 #Check pin status and send it via UDP packet to a PC with piFlightListener running on it
 def sendToPC(channel):
     global state
-    global ingnorestatus
 
     #Small pause to exclude fake button pressing and additional status check
     time.sleep(0.001)
-    if state[channel] == i(channel) and not channel in ignorestatus:
+    if state[channel] == i(channel):
         return
 
     #Record pin status to a "state" variable
-    if not channel in ignorestatus:
+    if not type(state[channel]) is str:
         state[channel] = i(channel)
 
     #Forming message to be sent to a PC
@@ -112,20 +119,27 @@ def encoder(channel):
 
 
 #Selection of encoder mode or piFlightListener mode
-#piFlightListener modes should start with "!m_" prefix
-#Encoder1: T = thrust; M = mixture; P = propeller; E = elevator (pitch trim)
-#Encoder2: A = alt; H = heading; V = VS; N = nav; C = com; B = baro
 def modeSelect(channel):
     enc1modes = ["A", "H", "V"]
+    enc2modes = ["E", "B"]
 
-    if channel == 25:
+    if channel == 16:
         if enc1modes.index(state[channel]) == len(enc1modes)-1:
             state[channel] = enc1modes[0]
         else:
             state[channel] = enc1modes[enc1modes.index(state[channel]) + 1]
 
-    m = state[channel].replace("A", "ALT  ").replace("H", "HDG  ").replace("V", "VS   ")
-    display_update(m, 1, False)
+        m = state[channel].replace("A", "ALT").replace("H", "HDG").replace("V", "VS")
+        display_update(m, 1, False)
+
+    if channel == 25:
+        if enc2modes.index(state[channel]) == len(enc2modes)-1:
+            state[channel] = enc2modes[0]
+        else:
+            state[channel] = enc2modes[enc2modes.index(state[channel]) + 1]
+
+        m = state[channel].replace("E", "ELEV").replace("B", "BARO")
+        display_update(m, 3, False)
 
 
 #========================= INITITALIZATION =========================#
@@ -146,13 +160,13 @@ GPIO.setup(12, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #Pitot heat switch
 GPIO.setup(13, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #AP button
 GPIO.setup(14, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #APPR button
 GPIO.setup(15, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #Landing gear switch
-GPIO.setup(16, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #encoder1_push_mode_select: Thrust, Mixture, Prop
+GPIO.setup(16, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #encoder1_push
 GPIO.setup(17, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #encoder1_rotate
 GPIO.setup(18, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #encoder1_rotate
 GPIO.setup(19, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #Flaps up button
 GPIO.setup(20, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #Flaps down button
 GPIO.setup(24, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #Anti-Ice button
-GPIO.setup(25, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #encoder2_push_mode_select: ALT, HDG, NAV, COM
+GPIO.setup(25, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #encoder2_push
 GPIO.setup(26, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #encoder2_rotate
 GPIO.setup(27, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #encoder2_rotate
 
@@ -160,34 +174,37 @@ GPIO.setup(27, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #encoder2_rotate
 enc1 = Encoder(17, 18)
 enc2 = Encoder(26, 27)
 
+#Arduino with potentiometers init
+potentiometers = arduinolistener.ArduinoListener()
+
 #Main variable with pin status. Pins in "ignorestatus" ignore state changes. >Add your buttons/switches/etc here<
-state = {1:i(1), 4:i(4), 5:i(5), 6:i(6), 7:i(7), 8:i(8), 9:i(9), 10:i(10), 11:i(11), 12:i(12),
-13:"B", 14:"B", 15:i(15), 16:"E", 17:"-", 18:"+", 19:"B", 20:"B", 24:"B", 25:"A", 26:"-", 27:"+"}
+state = {1:"B", 4:"B", 5:"B", 6:i(6), 7:"B", 8:"B", 9:"B", 10:"B", 11:"B", 12:"B",
+13:"B", 14:"B", 15:i(15), 16:"A", 17:"-", 18:"+", 19:"B", 20:"B", 24:"B", 25:"E", 26:"-", 27:"+"}
 
 #Event triggers. >Add your buttons/switches/etc here<
-GPIO.add_event_detect(1, GPIO.BOTH, callback=sendToPC, bouncetime=100)
-GPIO.add_event_detect(4, GPIO.BOTH, callback=sendToPC, bouncetime=100)
-GPIO.add_event_detect(5, GPIO.BOTH, callback=sendToPC, bouncetime=100)
-GPIO.add_event_detect(6, GPIO.BOTH, callback=sendToPC, bouncetime=100)
-GPIO.add_event_detect(7, GPIO.BOTH, callback=sendToPC, bouncetime=100)
-GPIO.add_event_detect(8, GPIO.BOTH, callback=sendToPC, bouncetime=100)
-GPIO.add_event_detect(9, GPIO.BOTH, callback=sendToPC, bouncetime=100)
-GPIO.add_event_detect(10, GPIO.BOTH, callback=sendToPC, bouncetime=100)
-GPIO.add_event_detect(11, GPIO.BOTH, callback=sendToPC, bouncetime=100)
-GPIO.add_event_detect(12, GPIO.BOTH, callback=sendToPC, bouncetime=100)
-GPIO.add_event_detect(13, GPIO.RISING, callback=sendToPC, bouncetime=550)
-GPIO.add_event_detect(14, GPIO.RISING, callback=sendToPC, bouncetime=550)
-GPIO.add_event_detect(15, GPIO.BOTH, callback=sendToPC, bouncetime=100)
+GPIO.add_event_detect(1, GPIO.FALLING, callback=sendToPC, bouncetime=250)
+GPIO.add_event_detect(4, GPIO.FALLING, callback=sendToPC, bouncetime=550)
+GPIO.add_event_detect(5, GPIO.FALLING, callback=sendToPC, bouncetime=550)
+GPIO.add_event_detect(6, GPIO.BOTH, callback=sendToPC, bouncetime=550)
+GPIO.add_event_detect(7, GPIO.FALLING, callback=sendToPC, bouncetime=550)
+GPIO.add_event_detect(8, GPIO.FALLING, callback=sendToPC, bouncetime=550)
+GPIO.add_event_detect(9, GPIO.FALLING, callback=sendToPC, bouncetime=550)
+GPIO.add_event_detect(10, GPIO.FALLING, callback=sendToPC, bouncetime=550)
+GPIO.add_event_detect(11, GPIO.FALLING, callback=sendToPC, bouncetime=550)
+GPIO.add_event_detect(12, GPIO.FALLING, callback=sendToPC, bouncetime=550)
+GPIO.add_event_detect(13, GPIO.FALLING, callback=sendToPC, bouncetime=550)
+GPIO.add_event_detect(14, GPIO.FALLING, callback=sendToPC, bouncetime=550)
+GPIO.add_event_detect(15, GPIO.BOTH, callback=sendToPC, bouncetime=550)
 #Encoder1
-#GPIO.add_event_detect(16, GPIO.RISING, callback=modeSelect, bouncetime=250)
+GPIO.add_event_detect(16, GPIO.FALLING, callback=modeSelect, bouncetime=450)
 GPIO.add_event_detect(17, GPIO.BOTH, callback=encoder, bouncetime=10)
 GPIO.add_event_detect(18, GPIO.BOTH, callback=encoder, bouncetime=10)
 #===
-GPIO.add_event_detect(19, GPIO.RISING, callback=sendToPC, bouncetime=550)
-GPIO.add_event_detect(20, GPIO.RISING, callback=sendToPC, bouncetime=550)
-GPIO.add_event_detect(24, GPIO.RISING, callback=sendToPC, bouncetime=550)
+GPIO.add_event_detect(19, GPIO.FALLING, callback=sendToPC, bouncetime=550)
+GPIO.add_event_detect(20, GPIO.FALLING, callback=sendToPC, bouncetime=550)
+GPIO.add_event_detect(24, GPIO.FALLING, callback=sendToPC, bouncetime=550)
 #Encoder2
-GPIO.add_event_detect(25, GPIO.RISING, callback=modeSelect, bouncetime=450)
+GPIO.add_event_detect(25, GPIO.FALLING, callback=modeSelect, bouncetime=450)
 GPIO.add_event_detect(26, GPIO.BOTH, callback=encoder, bouncetime=10)
 GPIO.add_event_detect(27, GPIO.BOTH, callback=encoder, bouncetime=10)
 #===
@@ -198,10 +215,11 @@ try:
         print(orangebg + red + "               piFlightBox               " + reset)
         status("")
 
-    display_init()
+    display_init() #Display initialization
 
     while True:
         time.sleep(0.001) #Small sleep sequence to avoid high CPU load
+        potentiometers.read(show_status)
 except Exception as exc:
     print(exc)
 except KeyboardInterrupt:

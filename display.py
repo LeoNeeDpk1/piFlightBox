@@ -12,7 +12,11 @@ class Display:
 
 
     def show(self):
-        lcd.text(self.t1+"|"+self.t2+"|"+self.t3, 1)
+        lcd.clear()
+        time.sleep(0.1)
+        lcd.text((str(self.t1) + ((5 - len(str(self.t1))) * " ")) +
+         "|" + (str(self.t2) + ((5 - len(str(self.t2))) * " ")) +
+         "|" + (str(self.t3) + ((4 - len(str(self.t3))) * " ")),  1)
         lcd.text(self.row2, 2)
 
 
