@@ -1,6 +1,12 @@
-#Path to folder with script
+#Path to folder with script.
 path = '/root/piFlightBox/'
-#Pins to ignore when getting GPIO.input(pin)
-ignore = [13, 14, 16, 17, 18, 19, 20, 24, 25, 26, 27]
-#IP and port of FlightSim PC with listener script
-address = ('192.168.1.132', 65000)
+
+#IP and port of FlightSim PC with listener script.
+address = ('192.168.1.120', 65000)
+
+#Potentiometer names for the piFlightListener bindings.py.
+pot1name = "MIXTURE"
+pot2name = "THROTTLE"
+
+pot1maxvalue = 16383
+pot2maxvalue = 16383

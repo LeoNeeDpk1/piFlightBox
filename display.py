@@ -23,6 +23,5 @@ class Display:
     def quit(self):
         lcd.text("piFlightBox",1)
         lcd.text("terminated", 2)
-        time.sleep(1)
-        lcd.clear()
+        #lcd.clear()
         exit(1)

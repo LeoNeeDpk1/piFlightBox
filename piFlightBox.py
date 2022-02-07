@@ -1,5 +1,5 @@
 import RPi.GPIO as GPIO
-import config, string, time, os, sys, display, arduinolistener
+import config, string, time, os, sys, display, potentiometers
 from led import scenario as led
 from send import sender
 from encoder import Encoder
@@ -39,8 +39,8 @@ def display_init():
     disp.row2 = "piFlightBox up"
     disp.show()
     time.sleep(1)
-    disp.t1 = state[16].replace("A", "ALT").replace("H", "HDG").replace("V", "VS")
-    disp.t3 = state[25].replace("E", "ELEV").replace("B", "BARO")
+    disp.t1 = state[22].replace("A", "ALT").replace("H", "HDG").replace("V", "VS")
+    disp.t3 = state[23].replace("E", "ELEV").replace("B", "BARO")
     disp.row2 = str(config.address[0])
     disp.show()
 
@@ -97,7 +97,7 @@ def sendToPC(channel):
         state[channel] = i(channel)
 
     #Forming message to be sent to a PC
-    message = (str(channel) + str(state[channel])).replace("17", state[16]).replace("18", state[16]).replace("26", state[25]).replace("27", state[25])
+    message = (str(channel) + str(state[channel])).replace("16", state[22]).replace("17", state[22]).replace("18", state[22]).replace("25", state[23]).replace("26", state[23]).replace("27", state[23])
     sender(message)
 
     if logging:
@@ -123,7 +123,7 @@ def modeSelect(channel):
     enc1modes = ["A", "H", "V"]
     enc2modes = ["E", "B"]
 
-    if channel == 16:
+    if channel == 22:
         if enc1modes.index(state[channel]) == len(enc1modes)-1:
             state[channel] = enc1modes[0]
         else:
@@ -132,7 +132,7 @@ def modeSelect(channel):
         m = state[channel].replace("A", "ALT").replace("H", "HDG").replace("V", "VS")
         display_update(m, 1, False)
 
-    if channel == 25:
+    if channel == 23:
         if enc2modes.index(state[channel]) == len(enc2modes)-1:
             state[channel] = enc2modes[0]
         else:
@@ -151,21 +151,23 @@ GPIO.setup(1, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #Master switch
 GPIO.setup(4, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #Alternator switch
 GPIO.setup(5, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #Avionics switch
 GPIO.setup(6, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #Parking break
-GPIO.setup(7, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #Nav lights switch
-GPIO.setup(8, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #Beacon lights switch
-GPIO.setup(9, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #Strobe lights switch
-GPIO.setup(10, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #Taxi lights switch
-GPIO.setup(11, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #Landing lights switch
-GPIO.setup(12, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #Pitot heat switch
-GPIO.setup(13, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #AP button
-GPIO.setup(14, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #APPR button
+GPIO.setup(7, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #Beacon lights
+GPIO.setup(8, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #Strobe lights
+GPIO.setup(9, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #Taxi lights
+GPIO.setup(10, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #Landing lights
+GPIO.setup(11, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) 
+GPIO.setup(12, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #AP
+GPIO.setup(13, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #NAV lights
+GPIO.setup(14, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #Pitot heat
 GPIO.setup(15, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #Landing gear switch
 GPIO.setup(16, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #encoder1_push
 GPIO.setup(17, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #encoder1_rotate
 GPIO.setup(18, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #encoder1_rotate
 GPIO.setup(19, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #Flaps up button
 GPIO.setup(20, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #Flaps down button
-GPIO.setup(24, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #Anti-Ice button
+GPIO.setup(22, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #enc1 mode
+GPIO.setup(23, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #enc2 mode
+GPIO.setup(24, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) 
 GPIO.setup(25, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #encoder2_push
 GPIO.setup(26, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #encoder2_rotate
 GPIO.setup(27, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #encoder2_rotate
@@ -175,11 +177,11 @@ enc1 = Encoder(17, 18)
 enc2 = Encoder(26, 27)
 
 #Arduino with potentiometers init
-potentiometers = arduinolistener.ArduinoListener()
+potentiometers = potentiometers.Listener()
 
-#Main variable with pin status. Pins in "ignorestatus" ignore state changes. >Add your buttons/switches/etc here<
+#Main variable with pin status. >Add your buttons/switches/etc here<
 state = {1:"B", 4:"B", 5:"B", 6:i(6), 7:"B", 8:"B", 9:"B", 10:"B", 11:"B", 12:"B",
-13:"B", 14:"B", 15:i(15), 16:"A", 17:"-", 18:"+", 19:"B", 20:"B", 24:"B", 25:"E", 26:"-", 27:"+"}
+13:"B", 14:"B", 15:i(15), 16:"B", 17:"-", 18:"+", 19:"B", 20:"B", 22:"A", 23:"E", 24:"B", 25:"B", 26:"-", 27:"+"}
 
 #Event triggers. >Add your buttons/switches/etc here<
 GPIO.add_event_detect(1, GPIO.FALLING, callback=sendToPC, bouncetime=250)
@@ -196,15 +198,17 @@ GPIO.add_event_detect(13, GPIO.FALLING, callback=sendToPC, bouncetime=550)
 GPIO.add_event_detect(14, GPIO.FALLING, callback=sendToPC, bouncetime=550)
 GPIO.add_event_detect(15, GPIO.BOTH, callback=sendToPC, bouncetime=550)
 #Encoder1
-GPIO.add_event_detect(16, GPIO.FALLING, callback=modeSelect, bouncetime=450)
+GPIO.add_event_detect(16, GPIO.FALLING, callback=sendToPC, bouncetime=550)
 GPIO.add_event_detect(17, GPIO.BOTH, callback=encoder, bouncetime=10)
 GPIO.add_event_detect(18, GPIO.BOTH, callback=encoder, bouncetime=10)
 #===
 GPIO.add_event_detect(19, GPIO.FALLING, callback=sendToPC, bouncetime=550)
 GPIO.add_event_detect(20, GPIO.FALLING, callback=sendToPC, bouncetime=550)
+GPIO.add_event_detect(22, GPIO.FALLING, callback=modeSelect, bouncetime=550)
+GPIO.add_event_detect(23, GPIO.FALLING, callback=modeSelect, bouncetime=550)
 GPIO.add_event_detect(24, GPIO.FALLING, callback=sendToPC, bouncetime=550)
 #Encoder2
-GPIO.add_event_detect(25, GPIO.FALLING, callback=modeSelect, bouncetime=450)
+GPIO.add_event_detect(25, GPIO.FALLING, callback=sendToPC, bouncetime=550)
 GPIO.add_event_detect(26, GPIO.BOTH, callback=encoder, bouncetime=10)
 GPIO.add_event_detect(27, GPIO.BOTH, callback=encoder, bouncetime=10)
 #===
