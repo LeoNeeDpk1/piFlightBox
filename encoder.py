@@ -1,11 +1,17 @@
 #Encoder logic
 
 class Encoder:
-    def __init__(self, pin_left, pin_right):
+    def __init__(self, pin_left, pin_right, selector, modes):
         self.p_l = pin_left
         self.p_r = pin_right
+        self.selector = selector
+        self.modes = modes
         self.s1 = 0
         self.s2 = 0
+
+    def test(self):
+        return "123"
+        
 
     def rotate(self, channel, left_status, right_status):
         if left_status == right_status:
@@ -26,3 +32,14 @@ class Encoder:
                 return channel
             if channel == self.p_l and self.s2 <= 0:
                 return channel
+
+    def modeSelect():
+        pass
+        '''if channel == 22:
+        if enc1modes.index(state[channel]) == len(enc1modes)-1:
+            state[channel] = enc1modes[0]
+        else:
+            state[channel] = enc1modes[enc1modes.index(state[channel]) + 1]
+
+        m = state[channel].replace("A", "ALT").replace("H", "HDG").replace("V", "VS")
+        display_update(m, 1, False)'''

@@ -121,23 +121,9 @@ def encoder(channel):
 
 #Selection of encoder mode or piFlightListener mode
 def modeSelect(channel):
-    if channel == 22:
-        if enc1modes.index(state[channel]) == len(enc1modes)-1:
-            state[channel] = enc1modes[0]
-        else:
-            state[channel] = enc1modes[enc1modes.index(state[channel]) + 1]
-
-        m = state[channel].replace("A", "ALT").replace("H", "HDG").replace("V", "VS")
-        display_update(m, 1, False)
-
-    if channel == 23:
-        if enc2modes.index(state[channel]) == len(enc2modes)-1:
-            state[channel] = enc2modes[0]
-        else:
-            state[channel] = enc2modes[enc2modes.index(state[channel]) + 1]
-
-        m = state[channel].replace("E", "ELEV").replace("B", "BARO")
-        display_update(m, 3, False)
+    print (encoders["17"].test())
+    pass
+    #print(enc1.__class__.__name__)
 
 
 #========================= INITITALIZATION START =========================#
@@ -201,10 +187,31 @@ GPIO.add_event_detect(26, GPIO.BOTH, callback=encoder, bouncetime=10)
 GPIO.add_event_detect(27, GPIO.BOTH, callback=encoder, bouncetime=10)
 
 #Encoders init. Encoder(pin_of_left_rotation, pin_of_right_rotation) >Add your encoders here<
-enc1 = Encoder(17, 18)
-enc2 = Encoder(26, 27)
-enc1modes = ["A", "H", "V"]
-enc2modes = ["E", "B"]
+encoders = {}
+
+encoders[str((config.encoders[0])[0])] = Encoder((config.encoders[0])[0], (config.encoders[0])[1], (config.encoders[0])[2], (config.encoders[0])[3])
+
+
+'''for item in config.encoders:
+    l = []
+    for k in item:
+        print(k)
+
+print((config.encoders[1])[2])'''
+
+
+
+
+'''encoders = {
+    "1":Encoder(17, 18, 22, ["A", "H", "V"])
+    
+
+}'''
+#enc1 = Encoder(17, 18, 22, ["A", "H", "V"])
+#print((enc1).__name__)
+#enc2 = Encoder(26, 27, 23, ["E", "B"])
+#enc1modes = ["A", "H", "V"]
+#enc2modes = ["E", "B"]
 
 #Arduino with potentiometers init
 potentiometers = potentiometers.Listener()
