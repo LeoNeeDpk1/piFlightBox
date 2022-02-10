@@ -1,0 +1,13 @@
+encoders:
+  1:
+    pin_left: 17
+    pin_right: 18
+    pin_push: 22
+    modes: ["A", "H", "V"]
+
+  2:
+    pin_left: 26
+    pin_right: 27
+    pin_push: 23
+    modes: ["E", "B"]
+

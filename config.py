@@ -1,5 +1,5 @@
 #Path to folder with script.
-path = '/root/piFlightBox/'
+path = '/root/testing/'
 
 #IP and port of FlightSim PC with listener script.
 address = ('192.168.1.120', 65000)

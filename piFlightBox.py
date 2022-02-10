@@ -1,9 +1,10 @@
 import RPi.GPIO as GPIO
-import config, string, time, os, sys, display, potentiometers
+import string, time, os, sys, display, potentiometers
 from led import scenario as led
 from send import sender
 from encoder import Encoder
 from datetime import datetime
+from parser import ConfigParser
 
 
 #Service variables. More info in config.py
@@ -41,7 +42,7 @@ def display_init():
     time.sleep(0.5)
     disp.t1 = state[22].replace("A", "ALT").replace("H", "HDG").replace("V", "VS")
     disp.t3 = state[23].replace("E", "ELEV").replace("B", "BARO")
-    disp.row2 = str(config.address[0])
+    disp.row2 = str("TESTING >.(")
     disp.show()
 
 
@@ -119,15 +120,19 @@ def encoder(channel):
         sendToPC(e)
 
 
-#Selection of encoder mode or piFlightListener mode
+#Selection of encoder mode
 def modeSelect(channel):
-    print (encoders["17"].test())
-    pass
-    #print(enc1.__class__.__name__)
+    for item in encoders:
+        #print (item, channel)
+        if channel is encoders[item][2]:
+            print (encoders[item][3])
 
 
 #========================= INITITALIZATION START =========================#
 #--------------------------------------------------------------------
+
+#Config reading
+conf = ConfigParser()
 
 #Pins init. >Add your buttons/switches/encoder/etc here<
 GPIO.setmode(GPIO.BCM)
@@ -187,31 +192,15 @@ GPIO.add_event_detect(26, GPIO.BOTH, callback=encoder, bouncetime=10)
 GPIO.add_event_detect(27, GPIO.BOTH, callback=encoder, bouncetime=10)
 
 #Encoders init. Encoder(pin_of_left_rotation, pin_of_right_rotation) >Add your encoders here<
+enc_list = conf.encoders
 encoders = {}
 
-encoders[str((config.encoders[0])[0])] = Encoder((config.encoders[0])[0], (config.encoders[0])[1], (config.encoders[0])[2], (config.encoders[0])[3])
-
-
-'''for item in config.encoders:
-    l = []
-    for k in item:
-        print(k)
-
-print((config.encoders[1])[2])'''
 
 
 
+for item in enc_list:
+    encoders[str(enc_list[item]["pin_left"]) + "_" + str(enc_list[item]["pin_right"])] = enc_list[item]["pin_left"], enc_list[item]["pin_right"], enc_list[item]["pin_push"], enc_list[item]["modes"]
 
-'''encoders = {
-    "1":Encoder(17, 18, 22, ["A", "H", "V"])
-    
-
-}'''
-#enc1 = Encoder(17, 18, 22, ["A", "H", "V"])
-#print((enc1).__name__)
-#enc2 = Encoder(26, 27, 23, ["E", "B"])
-#enc1modes = ["A", "H", "V"]
-#enc2modes = ["E", "B"]
 
 #Arduino with potentiometers init
 potentiometers = potentiometers.Listener()

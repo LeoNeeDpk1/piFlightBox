@@ -8,9 +8,6 @@ class Encoder:
         self.modes = modes
         self.s1 = 0
         self.s2 = 0
-
-    def test(self):
-        return "123"
         
 
     def rotate(self, channel, left_status, right_status):
