@@ -1,13 +1,114 @@
+pins:
+  1:
+    type: button
+    bouncetime: 550
+  4:
+    type: button
+    bouncetime: 550
+  5:
+    type: button
+    bouncetime: 550
+  6:
+    type: switch
+    bouncetime: 550
+  7:
+    type: button
+    bouncetime: 550
+  8:
+    type: button
+    bouncetime: 550
+  9:
+    type: button
+    bouncetime: 550
+  10:
+    type: button
+    bouncetime: 550
+  11:
+    type: button
+    bouncetime: 550
+  12:
+    type: button
+    bouncetime: 550
+  13:
+    type: button
+    bouncetime: 550
+  14:
+    type: button
+    bouncetime: 550
+  15:
+    type: switch
+    bouncetime: 550
+  16:
+    type: button
+    bouncetime: 550
+  17:
+    type: encoder-
+    bouncetime: 10
+  18:
+    type: encoder+
+    bouncetime: 10
+  19:
+    type: button
+    bouncetime: 550
+  20:
+    type: button
+    bouncetime: 550
+  22:
+    type: mode
+    bouncetime: 550
+    modes: ["A", "H", "V"]
+    display: 1
+  23:
+    type: mode
+    bouncetime: 550
+    modes: ["E", "B"]
+    display: 3
+  24:
+    type: button
+    bouncetime: 550
+  25:
+    type: button
+    bouncetime: 550
+  26:
+    type: encoder-
+    bouncetime: 10
+  27:
+    type: encoder+
+    bouncetime: 10
+  
+
 encoders:
   1:
     pin_left: 17
     pin_right: 18
-    pin_push: 22
-    modes: ["A", "H", "V"]
+    pin_push: 16
+    modechanger: 22
 
   2:
     pin_left: 26
     pin_right: 27
-    pin_push: 23
-    modes: ["E", "B"]
+    pin_push: 25
+    modechanger: 23
+  
 
+translation:
+  modes:
+    A: ALT
+    H: HDG
+    V: VS
+    E: ELEV
+    B: BARO
+
+  replacements:
+    16: 22
+    17: 22
+    18: 22
+    25: 23
+    26: 23
+    27: 23
+
+
+settings:
+  ip: 192.168.1.120
+  port: 65000
+  path: /root/testing/
