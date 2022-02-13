@@ -1,7 +1,7 @@
 settings:
   ip: 192.168.1.120
   port: 65000
-  path: /root/testing/
+  path: /root/piFlightBox/
   display: True
   potentiometers: True
 
