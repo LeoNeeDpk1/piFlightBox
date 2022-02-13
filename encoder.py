@@ -6,6 +6,7 @@ class Encoder:
         self.p_r = pin_right
         self.s1 = 0
         self.s2 = 0
+        
 
     def rotate(self, channel, left_status, right_status):
         if left_status == right_status:

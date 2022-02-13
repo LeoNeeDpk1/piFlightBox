@@ -1,10 +1,10 @@
 import RPi.GPIO as GPIO
-import config, string, time, os, sys, display, potentiometers
-from led import scenario as led
-from send import sender
+from parser import ConfigParser
+from potentiometers import Potentiometers
 from encoder import Encoder
+from send import sender
 from datetime import datetime
-
+import string, time, os, sys
 
 #Service variables. More info in config.py
 chars = string.ascii_uppercase
@@ -34,38 +34,48 @@ def i(pin):
 
 
 def display_init():
-    global disp
-    disp = display.Display()
-    disp.row2 = "piFlightBox up"
-    disp.show()
-    time.sleep(0.5)
-    disp.t1 = state[22].replace("A", "ALT").replace("H", "HDG").replace("V", "VS")
-    disp.t3 = state[23].replace("E", "ELEV").replace("B", "BARO")
-    disp.row2 = str(config.address[0])
-    disp.show()
+    if settings_list["display"]:
+        from display import Display
+        global disp
+        disp = Display()
+        disp.row2 = display_list["greetings"]
+        disp.show()
+        time.sleep(0.5)
+        try:
+            disp.t1 = translation_list["modes"][state[display_list["third1pin"]]]
+        except:
+            disp.t1 = "==X=="
+        try:
+            disp.t2 = translation_list["modes"][state[display_list["third2pin"]]]
+        except:
+            disp.t2 = "==X=="
+        try:
+            disp.t3 = translation_list["modes"][state[display_list["third3pin"]]]
+        except:
+            disp.t3 = "=X=="
+        disp.row2 = str(settings_list["ip"])
+        disp.show()
 
 
 #Display text update. Text of given 1 of 3 thirds of the first row and row 2. Ignoring row update if False.
 def display_update(text, third, row2):
-    if text:
-        if third == 1:
-            disp.t1 = text
-        elif third == 2:
-            disp.t2 = text
-        elif third == 3:
-            disp.t3 = text
+    if settings_list["display"]:
+        if text:
+            if third == 1:
+                disp.t1 = text
+            elif third == 2:
+                disp.t2 = text
+            elif third == 3:
+                disp.t3 = text
 
-    if row2:
-        disp.row2 = row2
+        if row2:
+            disp.row2 = row2
 
-    disp.show()
+        disp.show()
 
 
 #Show pins status if show_status is True. May cause spontaneous script stucks. For testing only
 def status(changed):
-    global show_status
-    global status_on_disp
-
     if status_on_disp and changed != "":
         display_update(str(changed) + ":" + str(state[changed]), 2, False)
 
@@ -85,142 +95,119 @@ def gettime():
 
 #Check pin status and send it via UDP packet to a PC with piFlightListener running on it
 def sendToPC(channel):
-    global state
-
-    #Small pause to exclude fake button pressing and additional status check
-    time.sleep(0.001)
-    if state[channel] == i(channel):
-        return
-
     #Record pin status to a "state" variable
     if not type(state[channel]) is str:
+        time.sleep(0.001) #Small pause to exclude fake button pressing and additional status check
+        if state[channel] == i(channel):
+            return
         state[channel] = i(channel)
 
     #Forming message to be sent to a PC
-    message = (str(channel) + str(state[channel])).replace("16", state[22]).replace("17", state[22]).replace("18", state[22]).replace("25", state[23]).replace("26", state[23]).replace("27", state[23])
-    sender(message)
+    try:
+        message = str(state[translation_list["replacements"][channel]]) + str(state[channel])
+    except:
+        message = (str(channel) + str(state[channel]))
+
+    sender(message, address)
 
     if logging:
-        os.system('echo ' + gettime() + message + '  >> ' + config.path + 'log')
+        os.system('echo ' + gettime() + message + '  >> ' + path + 'log')
 
     status(channel)
 
 
 #Rotation processing in "encoder.py"
-#>Add new if statement for new encoder<
 def encoder(channel):
-    if enc1.p_l <= channel <= enc1.p_r:
-        e = enc1.rotate(channel, i(enc1.p_l), i(enc1.p_r))
-    if enc2.p_l <= channel <= enc2.p_r:
-        e = enc2.rotate(channel, i(enc2.p_l), i(enc2.p_r))
+    for item in encoders_list:
+        if str(channel) in item:
+            e = encoders[item].rotate(channel, i(encoders_list[item][0]), i(encoders_list[item][1]))
+            if e:
+                 sendToPC(e)
+            break
 
 
-    if e:
-        sendToPC(e)
-
-
-#Selection of encoder mode or piFlightListener mode
+#Selection of encoder mode
 def modeSelect(channel):
-    if channel == 22:
-        if enc1modes.index(state[channel]) == len(enc1modes)-1:
-            state[channel] = enc1modes[0]
-        else:
-            state[channel] = enc1modes[enc1modes.index(state[channel]) + 1]
+    for item in encoders_list:
+        if channel == encoders_list[item][3]:
+            if encoders_list[item][4].index(state[channel]) == len(encoders_list[item][4])-1:
+                state[channel] = encoders_list[item][4][0]
+            else:
+                state[channel] = encoders_list[item][4][encoders_list[item][4].index(state[channel]) + 1]
 
-        m = state[channel].replace("A", "ALT").replace("H", "HDG").replace("V", "VS")
-        display_update(m, 1, False)
+            try:
+                third = False
+                if channel == display_list["third1pin"]:
+                    third = 1
+                elif channel == display_list["third2pin"]:
+                    third = 2
+                elif channel == display_list["third3pin"]:
+                    third = 3
 
-    if channel == 23:
-        if enc2modes.index(state[channel]) == len(enc2modes)-1:
-            state[channel] = enc2modes[0]
-        else:
-            state[channel] = enc2modes[enc2modes.index(state[channel]) + 1]
+                if third:
+                    display_update(translation_list["modes"][state[channel]], pins_list[channel]["display"], False)
+            except:
+                pass
 
-        m = state[channel].replace("E", "ELEV").replace("B", "BARO")
-        display_update(m, 3, False)
+            break
 
 
 #========================= INITITALIZATION START =========================#
+print("> init start")
 #--------------------------------------------------------------------
+#Config reading and main variables init.
+conf = ConfigParser()
+pins_list = conf.pins
+translation_list = conf.translation
+settings_list = conf.settings
+potentiometers_list = conf.potentiometers
+display_list = conf.display
 
-#Pins init. >Add your buttons/switches/encoder/etc here<
+state = {}
+encoders_list = {}
+encoders = {}
+address = (str(settings_list["ip"]), settings_list["port"])
+path = settings_list["path"]
+
+#Pins init.
 GPIO.setmode(GPIO.BCM)
 GPIO.setwarnings(False)
 
-GPIO.setup(1, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #Master switch
-GPIO.setup(4, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #Alternator switch
-GPIO.setup(5, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #Avionics switch
-GPIO.setup(6, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #Parking break
-GPIO.setup(7, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #Beacon lights
-GPIO.setup(8, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #Strobe lights
-GPIO.setup(9, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #Taxi lights
-GPIO.setup(10, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #Landing lights
-GPIO.setup(11, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
-GPIO.setup(12, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #AP
-GPIO.setup(13, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #NAV lights
-GPIO.setup(14, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #Pitot heat
-GPIO.setup(15, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #Landing gear switch
-GPIO.setup(16, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #encoder1_push
-GPIO.setup(17, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #encoder1_rotate
-GPIO.setup(18, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #encoder1_rotate
-GPIO.setup(19, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #Flaps up button
-GPIO.setup(20, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #Flaps down button
-GPIO.setup(22, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #enc1 mode
-GPIO.setup(23, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #enc2 mode
-GPIO.setup(24, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
-GPIO.setup(25, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #encoder2_push
-GPIO.setup(26, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #encoder2_rotate
-GPIO.setup(27, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #encoder2_rotate
+for item in pins_list:
+    GPIO.setup(item, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
 
-#Event triggers. >Add your buttons/switches/etc here<
-GPIO.add_event_detect(1, GPIO.FALLING, callback=sendToPC, bouncetime=250)
-GPIO.add_event_detect(4, GPIO.FALLING, callback=sendToPC, bouncetime=550)
-GPIO.add_event_detect(5, GPIO.FALLING, callback=sendToPC, bouncetime=550)
-GPIO.add_event_detect(6, GPIO.BOTH, callback=sendToPC, bouncetime=550)
-GPIO.add_event_detect(7, GPIO.FALLING, callback=sendToPC, bouncetime=550)
-GPIO.add_event_detect(8, GPIO.FALLING, callback=sendToPC, bouncetime=550)
-GPIO.add_event_detect(9, GPIO.FALLING, callback=sendToPC, bouncetime=550)
-GPIO.add_event_detect(10, GPIO.FALLING, callback=sendToPC, bouncetime=550)
-GPIO.add_event_detect(11, GPIO.FALLING, callback=sendToPC, bouncetime=550)
-GPIO.add_event_detect(12, GPIO.FALLING, callback=sendToPC, bouncetime=550)
-GPIO.add_event_detect(13, GPIO.FALLING, callback=sendToPC, bouncetime=550)
-GPIO.add_event_detect(14, GPIO.FALLING, callback=sendToPC, bouncetime=550)
-GPIO.add_event_detect(15, GPIO.BOTH, callback=sendToPC, bouncetime=550)
-GPIO.add_event_detect(19, GPIO.FALLING, callback=sendToPC, bouncetime=550)
-GPIO.add_event_detect(20, GPIO.FALLING, callback=sendToPC, bouncetime=550)
-GPIO.add_event_detect(22, GPIO.FALLING, callback=modeSelect, bouncetime=550)
-GPIO.add_event_detect(23, GPIO.FALLING, callback=modeSelect, bouncetime=550)
-GPIO.add_event_detect(24, GPIO.FALLING, callback=sendToPC, bouncetime=550)
-#Encoder1 pins
-GPIO.add_event_detect(16, GPIO.FALLING, callback=sendToPC, bouncetime=550)
-GPIO.add_event_detect(17, GPIO.BOTH, callback=encoder, bouncetime=10)
-GPIO.add_event_detect(18, GPIO.BOTH, callback=encoder, bouncetime=10)
-#Encoder2 pins
-GPIO.add_event_detect(25, GPIO.FALLING, callback=sendToPC, bouncetime=550)
-GPIO.add_event_detect(26, GPIO.BOTH, callback=encoder, bouncetime=10)
-GPIO.add_event_detect(27, GPIO.BOTH, callback=encoder, bouncetime=10)
+    if pins_list[item]["type"] == "button":
+        GPIO.add_event_detect(item, GPIO.FALLING, callback=sendToPC, bouncetime=pins_list[item]["bouncetime"])
+        state[item] = "B"
+    elif pins_list[item]["type"] == "switch":
+        GPIO.add_event_detect(item, GPIO.BOTH, callback=sendToPC, bouncetime=pins_list[item]["bouncetime"])
+        state[item] = i(item)
+    elif pins_list[item]["type"] == "mode":
+        GPIO.add_event_detect(item, GPIO.FALLING, callback=modeSelect, bouncetime=pins_list[item]["bouncetime"])
+        state[item] = pins_list[item]["modes"][0]
+    elif "encoder" in pins_list[item]["type"]:
+        GPIO.add_event_detect(item, GPIO.BOTH, callback=encoder, bouncetime=pins_list[item]["bouncetime"])
+        state[item] = pins_list[item]["type"][-1:]
 
-#Encoders init. Encoder(pin_of_left_rotation, pin_of_right_rotation) >Add your encoders here<
-enc1 = Encoder(17, 18)
-enc2 = Encoder(26, 27)
-enc1modes = ["A", "H", "V"]
-enc2modes = ["E", "B"]
+#Encoders init.
+for item in conf.encoders:
+    encoders_list[str(conf.encoders[item]["pin_left"]) + "_" + str(conf.encoders[item]["pin_right"])] = conf.encoders[item]["pin_left"], conf.encoders[item]["pin_right"], conf.encoders[item]["pin_push"], conf.encoders[item]["modechanger"], pins_list[(conf.encoders[item]["modechanger"])]["modes"]
+
+for item in encoders_list:
+    encoders[item] = Encoder(encoders_list[item][0], encoders_list[item][1])
 
 #Arduino with potentiometers init
-potentiometers = potentiometers.Listener()
-
-#Main variable with pin status. >Add your buttons/switches/etc here<
-state = {1:"B", 4:"B", 5:"B", 6:i(6), 7:"B", 8:"B", 9:"B", 10:"B", 11:"B", 12:"B",
-13:"B", 14:"B", 15:i(15), 16:"B", 17:"-", 18:"+", 19:"B", 20:"B", 22:"A", 23:"E", 24:"B", 25:"B", 26:"-", 27:"+"}
+if settings_list["potentiometers"]:
+    potentiometers = Potentiometers(address, potentiometers_list[1]["name"], potentiometers_list[1]["maxvalue"], potentiometers_list[2]["name"], potentiometers_list[2]["maxvalue"])
 
 #Display initialization
 display_init()
-
 #--------------------------------------------------------------------
+print("> init complete")
 #========================= INITITALIZATION END =========================#
 
-
 #Script starts here
+print("> piFlightBox ready")
 try:
     if show_status:
         print(orangebg + red + "               piFlightBox               " + reset)
@@ -237,4 +224,7 @@ try:
 except Exception as exc:
     print(exc)
 except KeyboardInterrupt:
-    disp.quit()
+    if settings_list["display"]:
+        disp.quit()
+    else:
+        exit(1)
