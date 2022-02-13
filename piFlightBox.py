@@ -1,10 +1,10 @@
 import RPi.GPIO as GPIO
-import string, time, os, sys, display, potentiometers
-from send import sender
-from encoder import Encoder
-from datetime import datetime
 from parser import ConfigParser
-
+from potentiometers import Potentiometers
+from encoder import Encoder
+from send import sender
+from datetime import datetime
+import string, time, os, sys
 
 #Service variables. More info in config.py
 chars = string.ascii_uppercase
@@ -34,31 +34,44 @@ def i(pin):
 
 
 def display_init():
-    global disp
-    disp = display.Display()
-    disp.row2 = "piFlightBox up"
-    disp.show()
-    time.sleep(0.5)
-    disp.t1 = state[22].replace("A", "ALT").replace("H", "HDG").replace("V", "VS")
-    disp.t3 = state[23].replace("E", "ELEV").replace("B", "BARO")
-    disp.row2 = str("TESTING >.(")
-    disp.show()
+    if settings_list["display"]:
+        from display import Display
+        global disp
+        disp = Display()
+        disp.row2 = display_list["greetings"]
+        disp.show()
+        time.sleep(0.5)
+        try:
+            disp.t1 = translation_list["modes"][state[display_list["third1pin"]]]
+        except:
+            disp.t1 = "==X=="
+        try:
+            disp.t2 = translation_list["modes"][state[display_list["third2pin"]]]
+        except:
+            disp.t2 = "==X=="
+        try:
+            disp.t3 = translation_list["modes"][state[display_list["third3pin"]]]
+        except:
+            disp.t3 = "=X=="
+        disp.row2 = str(settings_list["ip"])
+        disp.show()
 
 
 #Display text update. Text of given 1 of 3 thirds of the first row and row 2. Ignoring row update if False.
 def display_update(text, third, row2):
-    if text:
-        if third == 1:
-            disp.t1 = text
-        elif third == 2:
-            disp.t2 = text
-        elif third == 3:
-            disp.t3 = text
+    if settings_list["display"]:
+        if text:
+            if third == 1:
+                disp.t1 = text
+            elif third == 2:
+                disp.t2 = text
+            elif third == 3:
+                disp.t3 = text
 
-    if row2:
-        disp.row2 = row2
+        if row2:
+            disp.row2 = row2
 
-    disp.show()
+        disp.show()
 
 
 #Show pins status if show_status is True. May cause spontaneous script stucks. For testing only
@@ -123,11 +136,19 @@ def modeSelect(channel):
                 state[channel] = encoders_list[item][4][encoders_list[item][4].index(state[channel]) + 1]
 
             try:
-                if pins_list[channel]["display"]:
+                third = False
+                if channel == display_list["third1pin"]:
+                    third = 1
+                elif channel == display_list["third2pin"]:
+                    third = 2
+                elif channel == display_list["third3pin"]:
+                    third = 3
+
+                if third:
                     display_update(translation_list["modes"][state[channel]], pins_list[channel]["display"], False)
             except:
                 pass
-            
+
             break
 
 
@@ -137,10 +158,10 @@ print("> init start")
 #Config reading and main variables init.
 conf = ConfigParser()
 pins_list = conf.pins
-conf.encoders = conf.encoders
 translation_list = conf.translation
 settings_list = conf.settings
-
+potentiometers_list = conf.potentiometers
+display_list = conf.display
 
 state = {}
 encoders_list = {}
@@ -158,13 +179,13 @@ for item in pins_list:
     if pins_list[item]["type"] == "button":
         GPIO.add_event_detect(item, GPIO.FALLING, callback=sendToPC, bouncetime=pins_list[item]["bouncetime"])
         state[item] = "B"
-    if pins_list[item]["type"] == "switch":
+    elif pins_list[item]["type"] == "switch":
         GPIO.add_event_detect(item, GPIO.BOTH, callback=sendToPC, bouncetime=pins_list[item]["bouncetime"])
         state[item] = i(item)
-    if pins_list[item]["type"] == "mode":
+    elif pins_list[item]["type"] == "mode":
         GPIO.add_event_detect(item, GPIO.FALLING, callback=modeSelect, bouncetime=pins_list[item]["bouncetime"])
         state[item] = pins_list[item]["modes"][0]
-    if "encoder" in pins_list[item]["type"]:
+    elif "encoder" in pins_list[item]["type"]:
         GPIO.add_event_detect(item, GPIO.BOTH, callback=encoder, bouncetime=pins_list[item]["bouncetime"])
         state[item] = pins_list[item]["type"][-1:]
 
@@ -176,7 +197,8 @@ for item in encoders_list:
     encoders[item] = Encoder(encoders_list[item][0], encoders_list[item][1])
 
 #Arduino with potentiometers init
-potentiometers = potentiometers.Listener(address)
+if settings_list["potentiometers"]:
+    potentiometers = Potentiometers(address, potentiometers_list[1]["name"], potentiometers_list[1]["maxvalue"], potentiometers_list[2]["name"], potentiometers_list[2]["maxvalue"])
 
 #Display initialization
 display_init()
@@ -202,4 +224,7 @@ try:
 except Exception as exc:
     print(exc)
 except KeyboardInterrupt:
-    disp.quit()
+    if settings_list["display"]:
+        disp.quit()
+    else:
+        exit(1)

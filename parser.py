@@ -6,6 +6,8 @@ class ConfigParser:
         self.encoders = {}
         self.translation = {}
         self.settings = {}
+        self.potentiometers = {}
+        self.display= {}
         self.parse()
 
     def parse(self):
@@ -21,5 +23,9 @@ class ConfigParser:
                 self.translation = h2
             if h1 == "settings":
                 self.settings = h2
+            if h1 == "potentiometers":
+                self.potentiometers = h2
+            if h1 == "display":
+                self.display = h2
 
         file.close()

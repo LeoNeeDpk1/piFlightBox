@@ -1,3 +1,11 @@
+settings:
+  ip: 192.168.1.120
+  port: 65000
+  path: /root/testing/
+  display: True
+  potentiometers: True
+
+
 pins:
   1:
     type: button
@@ -21,9 +29,6 @@ pins:
     type: button
     bouncetime: 550
   10:
-    type: button
-    bouncetime: 550
-  11:
     type: button
     bouncetime: 550
   12:
@@ -51,6 +56,9 @@ pins:
     type: button
     bouncetime: 550
   20:
+    type: button
+    bouncetime: 550
+  21:
     type: button
     bouncetime: 550
   22:
@@ -89,7 +97,16 @@ encoders:
     pin_right: 27
     pin_push: 25
     modechanger: 23
-  
+
+
+potentiometers:
+  1:
+    name: MIXTURE
+    maxvalue: 16383
+  2:
+    name: THROTTLE
+    maxvalue: 16383
+
 
 translation:
   modes:
@@ -108,7 +125,8 @@ translation:
     27: 23
 
 
-settings:
-  ip: 192.168.1.120
-  port: 65000
-  path: /root/testing/
+display:
+  greetings: piFlightBox up
+  third1pin: 22
+  third2pin: ""
+  third3pin: 23
